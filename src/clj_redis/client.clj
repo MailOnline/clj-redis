@@ -72,6 +72,8 @@
 (defn type [p ^String k]
   (lease p (fn [^Jedis j] (.type j k))))
 
+(defn auth [p ^String pw]
+  (lease p (fn [^Jedis j] (.auth j pw))))
 
 ;; Strings
 
