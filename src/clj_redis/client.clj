@@ -7,28 +7,39 @@
 (def ^{:private true} local-url
   "redis://127.0.0.1:6379")
 
+(def global-password "")
+
 (defn init
   ([] (init {}))
-  ([{:keys [url timeout test-on-borrow] :as opts}]
+  ([{:keys [url timeout test-on-borrow password] :as opts}]
      (let [uri (URI. (or url local-url))
            tout (or timeout 2000)
            host (.getHost uri)
            port (if (pos? (.getPort uri)) (.getPort uri) 6379)
            uinfo (.getUserInfo uri)
            pass (and uinfo (last (str/split uinfo #":")))
-           config (JedisPoolConfig.)]
+           config (JedisPoolConfig.)
+           password (or password "")]
        (when test-on-borrow
          (.setTestOnBorrow config test-on-borrow))
+       (def global-password password)
        (JedisPool. config host port tout pass)))
   ([k1 v1 & {:as opts}]
      (init (assoc opts k1 v1))))
 
+;;authentication if necessary
+(defn auth [j]
+  (when-not (clojure.string/blank?  global-password)
+    (.auth j (.toString global-password))))
+
 (defn lease [^JedisPool p f]
   (let [j (.getResource p)]
     (try
+      (auth j)
       (f j)
       (finally
         (.returnResource p j)))))
+
 
 (defn ping [p]
   (lease p (fn [^Jedis j] (.ping j))))
@@ -72,8 +83,6 @@
 (defn type [p ^String k]
   (lease p (fn [^Jedis j] (.type j k))))
 
-(defn auth [p ^String pw]
-  (lease p (fn [^Jedis j] (.auth j pw))))
 
 ;; Strings
 
